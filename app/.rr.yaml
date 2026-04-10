@@ -1,0 +1,30 @@
+version: "2.7"
+
+rpc:
+  listen: tcp://127.0.0.1:6001
+
+server:
+  command: "php Worker.php -f=/app/vendor/monken/codeigniter4-burner/src/FrontLoader.php -a=/app/app/"
+  # env:
+  #   XDEBUG_SESSION: 1
+
+http:
+  address: "0.0.0.0:8080"
+  # ── mTLS (enabled when SVID PEM files exist at /certs/) ──────
+  # RoadRunner serves HTTPS on 8443 with mutual TLS:
+  #   - cert/key: this service's X.509-SVID (written by spiffe-helper)
+  #   - root_ca: trust bundle CA (verifies the Worker's client cert)
+  #   - client_auth_type: requires the caller to present a valid SVID
+  ssl:
+    address: "0.0.0.0:8443"
+    cert: "/certs/svid.pem"
+    key: "/certs/svid_key.pem"
+    root_ca: "/certs/bundle.pem"
+    client_auth_type: "require_and_verify_client_cert"
+  static:
+    dir: "/app/public"
+    forbid: [".htaccess", ".php"]
+  pool:
+    num_workers: 1
+    # max_jobs: 64
+    # debug: true
