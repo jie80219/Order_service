@@ -4,12 +4,14 @@
 #
 #  Orchestrates the full lifecycle:
 #    1. Build images
-#    2. Start SPIRE Server
-#    3. Bootstrap (generate join token + register workloads)
-#    4. Start SPIRE Agent (attests with join token)
-#    5. Run PHP E2E test suite
-#    6. Report results
-#    7. Tear down (optional: --keep to leave running)
+#    2. Start SPIRE Agent (connects to external SPIRE Server)
+#    3. Run PHP E2E test suite
+#    4. Report results
+#    5. Tear down (optional: --keep to leave running)
+#
+#  Prerequisites:
+#    - External SPIRE Server must be running and reachable
+#    - Set SPIRE_SERVER_ADDRESS and SPIRE_SERVER_PORT env vars
 #
 #  Usage:
 #    ./spiffe/e2e/run-e2e.sh          # run and tear down
@@ -57,40 +59,13 @@ log "Building PHP E2E image..."
 docker compose -f "$COMPOSE_FILE" build php-spiffe-e2e
 
 # ──────────────────────────────────────────────────────────────
-#  3. Start SPIRE Server
-# ──────────────────────────────────────────────────────────────
-log "Starting SPIRE Server..."
-docker compose -f "$COMPOSE_FILE" up -d spire-server
-
-log "Waiting for SPIRE Server to be healthy..."
-timeout=60
-elapsed=0
-until docker compose -f "$COMPOSE_FILE" exec -T spire-server \
-    /opt/spire/bin/spire-server healthcheck 2>/dev/null; do
-    sleep 2
-    elapsed=$((elapsed + 2))
-    if [ "$elapsed" -ge "$timeout" ]; then
-        fail "SPIRE Server not healthy after ${timeout}s"
-        docker compose -f "$COMPOSE_FILE" logs spire-server
-        exit 1
-    fi
-done
-log "SPIRE Server is healthy."
-
-# ──────────────────────────────────────────────────────────────
-#  4. Bootstrap: generate join token + register workloads
-# ──────────────────────────────────────────────────────────────
-log "Running bootstrap..."
-docker compose -f "$COMPOSE_FILE" exec -T spire-server \
-    /bin/sh /opt/spire/conf/e2e/bootstrap.sh
-
-# ──────────────────────────────────────────────────────────────
-#  5. Start SPIRE Agent
+#  3. Start SPIRE Agent (connects to external SPIRE Server)
 # ──────────────────────────────────────────────────────────────
 log "Starting SPIRE Agent..."
 docker compose -f "$COMPOSE_FILE" up -d spire-agent
 
 log "Waiting for SPIRE Agent to be healthy..."
+timeout=60
 elapsed=0
 until docker compose -f "$COMPOSE_FILE" exec -T spire-agent \
     /opt/spire/bin/spire-agent healthcheck 2>/dev/null; do
@@ -105,7 +80,7 @@ done
 log "SPIRE Agent is healthy."
 
 # ──────────────────────────────────────────────────────────────
-#  6. Run PHP E2E tests
+#  4. Run PHP E2E tests
 # ──────────────────────────────────────────────────────────────
 log "Running PHP E2E test suite..."
 echo ""
@@ -121,7 +96,6 @@ else
     fail "E2E tests failed (exit code: ${EXIT_CODE})"
     echo ""
     log "Dumping logs for debugging:"
-    docker compose -f "$COMPOSE_FILE" logs spire-server --tail=20
     docker compose -f "$COMPOSE_FILE" logs spire-agent --tail=20
 fi
 

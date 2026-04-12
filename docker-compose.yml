@@ -1,23 +1,20 @@
-version: "3"
-
 services:
-    # ── SPIRE Server ────────────────────────────────────────────────
-    spire-server:
-        image: ghcr.io/spiffe/spire-server:1.12.0
-        container_name: order-spire-server
+    # ── Agent config renderer (init container) ──────────────────────
+    spire-agent-init:
+        image: alpine:3.19
+        container_name: order-spire-agent-init
+        entrypoint: ["/bin/sh", "-c"]
         command:
-            - -config
-            - /opt/spire/conf/server/server.conf
+            - |
+              apk add --no-cache gettext > /dev/null 2>&1
+              envsubst < /tmpl/agent.conf.tmpl > /rendered/agent.conf
+              echo "agent.conf rendered (server=$${SPIRE_SERVER_ADDRESS}:$${SPIRE_SERVER_PORT})"
+        environment:
+            - SPIRE_SERVER_ADDRESS=${SPIRE_SERVER_ADDRESS:-gateway-spire-server}
+            - SPIRE_SERVER_PORT=${SPIRE_SERVER_PORT:-8081}
         volumes:
-            - ./spiffe/spire-server-e2e/server.conf:/opt/spire/conf/server/server.conf:ro
-            - ./spiffe/certs/agent-ca.crt.pem:/opt/spire/conf/server/agent-ca.crt.pem:ro
-            - spire-server-data:/opt/spire/data
-        healthcheck:
-            test: ["CMD", "/opt/spire/bin/spire-server", "healthcheck"]
-            interval: 5s
-            timeout: 3s
-            retries: 30
-            start_period: 10s
+            - ./spiffe/spire-agent/agent.conf:/tmpl/agent.conf.tmpl:ro
+            - spire-agent-conf:/rendered
         networks:
             - anser_project_network
 
@@ -29,13 +26,13 @@ services:
             - -config
             - /opt/spire/conf/agent/agent.conf
         volumes:
-            - ./spiffe/spire-agent-e2e/agent.conf:/opt/spire/conf/agent/agent.conf:ro
+            - spire-agent-conf:/opt/spire/conf/agent:ro
             - ./spiffe/certs/agent.key.pem:/opt/spire/conf/agent/agent.key.pem:ro
             - ./spiffe/certs/agent.crt.pem:/opt/spire/conf/agent/agent.crt.pem:ro
             - spire-agent-sockets:/run/spire/sockets
         depends_on:
-            spire-server:
-                condition: service_healthy
+            spire-agent-init:
+                condition: service_completed_successfully
         healthcheck:
             test: ["CMD", "/opt/spire/bin/spire-agent", "healthcheck", "-socketPath", "/run/spire/sockets/agent.sock"]
             interval: 5s
@@ -114,7 +111,7 @@ services:
             ]
 
 volumes:
-    spire-server-data:
+    spire-agent-conf:
     spire-agent-sockets:
     order-certs:
 
