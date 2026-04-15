@@ -6,7 +6,7 @@ Demo service in microservice architecture
 ### 初始次部署
 初次部署環境請記得建立 `anser_project_network` 網路，以利服務間的溝通。
 
-`ㄏ`
+`docker network create anser_project_network`
 
 ### 啟動環境
 `docker compose up` 或 `docker compose up -d`

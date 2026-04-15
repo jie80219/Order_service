@@ -70,5 +70,8 @@ class Filters extends BaseConfig
      *
      * @var array
      */
-    public $filters = [];
+    public $filters = [
+        'spiffeLsvid' => ['before' => ['api/v1/order', 'api/v1/order/*']],
+        'user'        => ['before' => ['api/v1/order', 'api/v1/order/*']],
+    ];
 }

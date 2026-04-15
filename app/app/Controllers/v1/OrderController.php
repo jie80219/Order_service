@@ -164,4 +164,18 @@ class OrderController extends BaseController
             return $this->fail("刪除訂單失敗",400);
         }
     }
+
+    /**
+     * [PUT] /api/v1/order/{orderKey}
+     * Confirm order — Saga Step 4 marks the order as completed.
+     */
+    public function confirm(string $orderKey = null)
+    {
+        if (is_null($orderKey)) return $this->fail("請輸入訂單 key", 400);
+
+        $orderEntity = OrderBusinessLogic::getOrder($orderKey);
+        if (!$orderEntity) return $this->fail("找不到訂單", 404);
+
+        return $this->respond(["msg" => "OK", "o_key" => $orderKey]);
+    }
 }

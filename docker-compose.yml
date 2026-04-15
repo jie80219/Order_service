@@ -19,6 +19,7 @@ services:
             - anser_project_network
 
     # ── SPIRE Agent ─────────────────────────────────────────────────
+    # Connects to an external SPIRE Server (not included in this compose)
     spire-agent:
         image: ghcr.io/spiffe/spire-agent:1.12.0
         container_name: order-spire-agent
@@ -117,4 +118,4 @@ volumes:
 
 networks:
     anser_project_network:
-        driver: bridge
+        external: true

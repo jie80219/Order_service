@@ -47,13 +47,13 @@ $routes->group(
 $routes->group(
     'api/v1',
     [
-        'namespace' => 'App\Controllers\v1',
-        'filter'    => 'spiffeLsvid,user'
+        'namespace' => 'App\Controllers\v1'
     ],
     function (\CodeIgniter\Router\RouteCollection $routes) {
         $routes->get('order', 'OrderController::index');
         $routes->get('order/(:segment)', 'OrderController::show/$1');
         $routes->post('order', 'OrderController::create');
+        $routes->put('order/(:segment)', 'OrderController::confirm/$1');
         $routes->delete('order/(:segment)', 'OrderController::delete/$1');
         $routes->get('/', 'Home::index');
     }
