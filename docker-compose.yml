@@ -1,23 +1,4 @@
 services:
-    # ── Agent config renderer (init container) ──────────────────────
-    spire-agent-init:
-        image: alpine:3.19
-        container_name: order-spire-agent-init
-        entrypoint: ["/bin/sh", "-c"]
-        command:
-            - |
-              apk add --no-cache gettext > /dev/null 2>&1
-              envsubst < /tmpl/agent.conf.tmpl > /rendered/agent.conf
-              echo "agent.conf rendered (server=$${SPIRE_SERVER_ADDRESS}:$${SPIRE_SERVER_PORT})"
-        environment:
-            - SPIRE_SERVER_ADDRESS=${SPIRE_SERVER_ADDRESS:-gateway-spire-server}
-            - SPIRE_SERVER_PORT=${SPIRE_SERVER_PORT:-8081}
-        volumes:
-            - ./spiffe/spire-agent/agent.conf:/tmpl/agent.conf.tmpl:ro
-            - spire-agent-conf:/rendered
-        networks:
-            - anser_project_network
-
     # ── SPIRE Agent ─────────────────────────────────────────────────
     # Connects to an external SPIRE Server (not included in this compose)
     spire-agent:
@@ -27,23 +8,24 @@ services:
             - -config
             - /opt/spire/conf/agent/agent.conf
         volumes:
-            - spire-agent-conf:/opt/spire/conf/agent:ro
+            - ./spiffe/spire-agent/agent.conf:/opt/spire/conf/agent/agent.conf:ro
             - ./spiffe/certs/agent.key.pem:/opt/spire/conf/agent/agent.key.pem:ro
             - ./spiffe/certs/agent.crt.pem:/opt/spire/conf/agent/agent.crt.pem:ro
             - spire-agent-sockets:/run/spire/sockets
-        depends_on:
-            spire-agent-init:
-                condition: service_completed_successfully
         healthcheck:
             test: ["CMD", "/opt/spire/bin/spire-agent", "healthcheck", "-socketPath", "/run/spire/sockets/agent.sock"]
             interval: 5s
             timeout: 3s
             retries: 30
             start_period: 15s
+        restart: unless-stopped
         networks:
             - anser_project_network
 
     # ── spiffe-helper sidecar ───────────────────────────────────────
+    # NOTE: order-helper 共享 spire-agent 的 PID namespace。
+    # 若 spire-agent 被 recreate（非僅 restart），order-helper 也必須 recreate，
+    # 否則 PID namespace 參照會失效。請使用 restart-helper.sh 處理此情境。
     order-helper:
         image: ghcr.io/spiffe/spiffe-helper:0.8.0
         container_name: order-helper
@@ -86,7 +68,15 @@ services:
         command: >
             bash -c "chmod 776 ./start_service.sh && ./start_service.sh"
         depends_on:
-            - order-helper
+            order-helper:
+                condition: service_started
+        healthcheck:
+            test: ["CMD-SHELL", "curl -so /dev/null -w '%{http_code}' http://127.0.0.1:8080/ | grep -qE '^[2-4]'"]
+            interval: 10s
+            timeout: 5s
+            retries: 6
+            start_period: 120s
+        restart: unless-stopped
 
     order_DB:
         image: postgres:11.12
@@ -100,6 +90,7 @@ services:
             - 8320:5432
         volumes:
             - ./order-db-data:/var/lib/postgresql/data/
+        restart: unless-stopped
         command:
             [
                 "postgres",
@@ -112,7 +103,6 @@ services:
             ]
 
 volumes:
-    spire-agent-conf:
     spire-agent-sockets:
     order-certs:
 
