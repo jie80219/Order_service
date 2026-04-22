@@ -9,8 +9,8 @@ services:
             - /opt/spire/conf/agent/agent.conf
         volumes:
             - ./spiffe/spire-agent/agent.conf:/opt/spire/conf/agent/agent.conf:ro
-            - ./spiffe/certs/agent.key.pem:/opt/spire/conf/agent/agent.key.pem:ro
-            - ./spiffe/certs/agent.crt.pem:/opt/spire/conf/agent/agent.crt.pem:ro
+            - ./spiffe/certs/order-agent.key.pem:/opt/spire/conf/agent/agent.key.pem:ro
+            - ./spiffe/certs/order-agent.crt.pem:/opt/spire/conf/agent/agent.crt.pem:ro
             - spire-agent-sockets:/run/spire/sockets
         healthcheck:
             test: ["CMD", "/opt/spire/bin/spire-agent", "healthcheck", "-socketPath", "/run/spire/sockets/agent.sock"]
@@ -22,19 +22,26 @@ services:
         networks:
             - anser_project_network
 
-    # ── spiffe-helper sidecar ───────────────────────────────────────
-    # NOTE: order-helper 共享 spire-agent 的 PID namespace。
-    # 若 spire-agent 被 recreate（非僅 restart），order-helper 也必須 recreate，
-    # 否則 PID namespace 參照會失效。請使用 restart-helper.sh 處理此情境。
-    order-helper:
-        image: ghcr.io/spiffe/spiffe-helper:0.8.0
-        container_name: order-helper
+    # ── Go SPIFFE Sidecar ──────────────────────────────────────────
+    # 取代 spiffe-helper：使用 Go 實作的 LSVID 驗證 sidecar。
+    # 提供 UDS API (/lsvid/validate, /lsvid/create-base, /lsvid/extend)
+    # 供 PHP SpiffeLsvidFilter 呼叫。
+    order-spiffe-sidecar:
+        build: ../../spiffe-sidecar
+        container_name: order-spiffe-sidecar
         pid: "service:spire-agent"
-        command: ["-config", "/opt/spiffe-helper/helper.conf"]
+        environment:
+            - SPIFFE_ENDPOINT_SOCKET=unix:///run/spire/sockets/agent.sock
+            - SPIFFE_SHM_DIR=/certs
+            - SPIFFE_SIDECAR_SOCKET=/sidecar/spiffe-sidecar.sock
+            - SPIFFE_ID=spiffe://zt.local/order-service
+            - SPIFFE_TRUST_DOMAIN=zt.local
+            - SPIFFE_HEALTH_ADDR=:9901
+            - LSVID_TTL_SECONDS=1800
         volumes:
-            - ./spiffe/helper/order-service.conf:/opt/spiffe-helper/helper.conf:ro
             - spire-agent-sockets:/run/spire/sockets:ro
             - order-certs:/certs
+            - sidecar-socket:/sidecar
         depends_on:
             spire-agent:
                 condition: service_healthy
@@ -42,7 +49,7 @@ services:
         networks:
             - anser_project_network
 
-    # ── Order Service ───────────────────────────────────────────────
+    # ── Order Service (PHP) ─────────────────────────────────────────
     order-service:
         image: webdevops/php:8.2
         platform: linux/x86_64
@@ -58,17 +65,19 @@ services:
             - PHP_MAX_EXECUTION_TIME=300
             - PHP_POST_MAX_SIZE=2048M
             - PHP_UPLOAD_MAX_FILESIZE=2048M
-            # ── SPIFFE / LSVID ──
+            # ── SPIFFE / LSVID (Go sidecar) ──
             - SPIFFE_ID=spiffe://zt.local/order-service
             - SPIFFE_SHM_DIR=/certs
+            - SPIFFE_SIDECAR_SOCKET=/sidecar/spiffe-sidecar.sock
             - LSVID_REQUIRED=0
         volumes:
             - './app:/app'
             - order-certs:/certs:ro
+            - sidecar-socket:/sidecar:ro
         command: >
             bash -c "chmod 776 ./start_service.sh && ./start_service.sh"
         depends_on:
-            order-helper:
+            order-spiffe-sidecar:
                 condition: service_started
         healthcheck:
             test: ["CMD-SHELL", "curl -so /dev/null -w '%{http_code}' http://127.0.0.1:8080/ | grep -qE '^[2-4]'"]
@@ -105,6 +114,7 @@ services:
 volumes:
     spire-agent-sockets:
     order-certs:
+    sidecar-socket:
 
 networks:
     anser_project_network:
