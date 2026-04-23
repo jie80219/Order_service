@@ -61,6 +61,14 @@ class SpiffeLsvidFilter implements FilterInterface
         $request->lsvid        = $rawLsvid;
         $request->lsvidIssuer  = $result['issuer'] ?? '';
         $request->lsvidSubject = $result['subject'] ?? '';
+
+        if ((getenv('LSVID_CAPTURE_DEBUG') ?: '0') === '1') {
+            @file_put_contents(
+                '/tmp/lsvid-capture.log',
+                sprintf("%s\t%d\t%s\n", date('c'), strlen($rawLsvid), $rawLsvid),
+                FILE_APPEND,
+            );
+        }
     }
 
     public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)

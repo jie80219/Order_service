@@ -27,7 +27,7 @@ services:
     # 提供 UDS API (/lsvid/validate, /lsvid/create-base, /lsvid/extend)
     # 供 PHP SpiffeLsvidFilter 呼叫。
     order-spiffe-sidecar:
-        build: ../../spiffe-sidecar
+        build: ./spiffe-sidecar
         container_name: order-spiffe-sidecar
         pid: "service:spire-agent"
         environment:
@@ -70,6 +70,7 @@ services:
             - SPIFFE_SHM_DIR=/certs
             - SPIFFE_SIDECAR_SOCKET=/sidecar/spiffe-sidecar.sock
             - LSVID_REQUIRED=0
+            - LSVID_CAPTURE_DEBUG=${LSVID_CAPTURE_DEBUG:-0}
         volumes:
             - './app:/app'
             - order-certs:/certs:ro
