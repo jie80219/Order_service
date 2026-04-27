@@ -9,8 +9,8 @@ services:
             - /opt/spire/conf/agent/agent.conf
         volumes:
             - ./spiffe/spire-agent/agent.conf:/opt/spire/conf/agent/agent.conf:ro
-            - ./spiffe/certs/agent.key.pem:/opt/spire/conf/agent/agent.key.pem:ro
-            - ./spiffe/certs/agent.crt.pem:/opt/spire/conf/agent/agent.crt.pem:ro
+            - ./spiffe/certs/order-agent.key.pem:/opt/spire/conf/agent/agent.key.pem:ro
+            - ./spiffe/certs/order-agent.crt.pem:/opt/spire/conf/agent/agent.crt.pem:ro
             - spire-agent-sockets:/run/spire/sockets
         healthcheck:
             test: ["CMD", "/opt/spire/bin/spire-agent", "healthcheck", "-socketPath", "/run/spire/sockets/agent.sock"]
